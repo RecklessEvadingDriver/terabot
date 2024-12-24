@@ -23,28 +23,42 @@ TERABOX_URLS = [
     "tibibox.com", "terabox.com"
 ]
 
-# TeraDownloader API URL
-TERADOWNLOADER_API_URL = "https://teradownloader.com/api/get-link"
-
-# Function to call the TeraDownloader API to fetch the video link
-def get_teradownloader_info(file_id):
-    api_url = f"{TERADOWNLOADER_API_URL}?url=https://terabox.com/s/{file_id}"
+# Function to call the first API for file info
+def get_terabox_info(file_id, password=''):
+    api_url = f"https://terabox.hnn.workers.dev/api/get-info?shorturl={file_id}&pwd={password}"
     response = requests.get(api_url)
     if response.status_code != 200:
         return None
     return response.json()
 
-# Function to get the download link using TeraDownloader
+# Function to get the download link
 def get_download_link(file_id, password=''):
     try:
-        # Get file info from TeraDownloader API
-        info = get_teradownloader_info(file_id)
-        if not info or 'downloadLink' not in info:
-            return "Error: Unable to retrieve file information from TeraDownloader."
+        info = get_terabox_info(file_id, password)
+        if not info or 'list' not in info or not info['list']:
+            return "Error: Unable to retrieve file information."
 
-        download_link = info['downloadLink']
-        if download_link:
-            return download_link
+        file_data = info['list'][0]
+        post_data = {
+            'shareid': info['shareid'],
+            'uk': info['uk'],
+            'sign': info['sign'],
+            'timestamp': info['timestamp'],
+            'fs_id': file_data['fs_id']
+        }
+
+        download_api_url = "https://terabox.hnn.workers.dev/api/get-download"
+        headers = {
+            'Accept': '*/*',
+            'Content-Type': 'application/json',
+        }
+
+        response = requests.post(download_api_url, json=post_data, headers=headers)
+        response.raise_for_status()
+
+        download_info = response.json()
+        if 'downloadLink' in download_info:
+            return download_info['downloadLink']
         else:
             return "Error: Download link not found."
     except requests.exceptions.RequestException as e:
@@ -125,7 +139,7 @@ async def download(update: Update, context: CallbackContext):
             await update.message.reply_text("Invalid TeraBox URL. Please provide a valid link.")
             return
 
-        # Fetch the download link from TeraDownloader API
+        # Fetch the download link
         download_link = get_download_link(file_id, password)
         if "Error" not in download_link:
             await download_and_send_video(update, context, download_link)
