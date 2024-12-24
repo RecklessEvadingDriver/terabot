@@ -20,7 +20,7 @@ DEVELOPER_USERNAME = "@recklessevader"
 TERABOX_URLS = [
     "mirrobox.com", "nephobox.com", "freeterabox.com", "1024tera.com",
     "4funbox.co", "terabox.app", "terabox.fun", "momerybox.com",
-    "tibibox.com", "terabox.com"
+    "tibibox.com", "terabox.com", "teraboxapp.xyz"
 ]
 
 # Function to call the first API for file info
@@ -66,6 +66,18 @@ def get_download_link(file_id, password=''):
     except KeyError:
         return "Error: Unexpected response from the API."
 
+# Function to convert TeraBox URL to desired format
+def convert_terabox_url(url):
+    # Match file ID from various TeraBox mirrors
+    for domain in TERABOX_URLS:
+        pattern = rf"https?://{domain}/s/([a-zA-Z0-9_-]+)"
+        match = re.search(pattern, url)
+        if match:
+            file_id = match.group(1)
+            # Return the converted URL in the desired format
+            return f"https://teraboxlink.com/s/{file_id}"
+    return "Invalid TeraBox URL. Please provide a valid link."
+
 # Function to handle video download and send
 async def download_and_send_video(update: Update, context: CallbackContext, download_link: str):
     video_file_path = 'video.mp4'  # Temporary file path for the video
@@ -92,46 +104,26 @@ async def download_and_send_video(update: Update, context: CallbackContext, down
     except Exception as e:
         await update.message.reply_text(f"An error occurred while processing the video: {e}")
 
-# Function to extract file ID from the TeraBox mirror URL
-def extract_file_id(url):
-    for domain in TERABOX_URLS:
-        pattern = rf"https?://{domain}/s/([a-zA-Z0-9_-]+)"
-        match = re.search(pattern, url)
-        if match:
-            return match.group(1)
-    return None
-
-# Function to generate the new TeraBoxLink URL
-def generate_teraboxlink_url(file_id):
-    return f"https://teraboxlink.com/s/{file_id}"
-
 # Command to start and welcome the user
 async def start(update: Update, context: CallbackContext):
     user = update.message.from_user
     bot: Bot = context.bot
     try:
+        # Remove the membership check completely
         # Check membership in the required channel
-        member_status = await bot.get_chat_member(FORCE_JOIN_CHANNEL, user.id)
-        if member_status.status not in ['member', 'administrator', 'creator']:
-            await update.message.reply_text(
-                f"Please join the required channel first: {FORCE_JOIN_CHANNEL}\n\n"
-                "Once you join, I can help you with the TeraBox file downloads!"
-            )
-            return
+        await update.message.reply_text(
+            f"Welcome to the TeraBox Downloader Bot! 👋\n\n"
+            f"Developer: {DEVELOPER} ({DEVELOPER_USERNAME})\n\n"
+            f"Send me a TeraBox file ID or full URL to get the video directly in the chat.\n"
+            f"Example: /download <ID or URL>\n"
+            f"If the file is password-protected, provide the password like this: /download <ID> <password>\n"
+            f"Supported TeraBox URLs: {', '.join(TERABOX_URLS)}"
+        )
     except Exception as e:
         await update.message.reply_text(
-            f"Error: Could not verify your membership in the channel. Ensure you've joined: {FORCE_JOIN_CHANNEL}"
+            f"Error: {str(e)}"
         )
-        return
 
-    await update.message.reply_text(
-        f"Welcome to the TeraBox Downloader Bot! 👋\n\n"
-        f"Developer: {DEVELOPER} ({DEVELOPER_USERNAME})\n\n"
-        f"Send me a TeraBox file ID or full URL to get the video directly in the chat.\n"
-        f"Example: /download <ID or URL>\n"
-        f"If the file is password-protected, provide the password like this: /download <ID> <password>\n"
-        f"Supported TeraBox URLs: {', '.join(TERABOX_URLS)}"
-    )
 
 # Command to process the download command
 async def download(update: Update, context: CallbackContext):
@@ -161,22 +153,14 @@ async def download(update: Update, context: CallbackContext):
     else:
         await update.message.reply_text("Please provide a TeraBox file URL or ID.\nExample: /download https://terabox.com/s/1z57Ii1-U1hp0472eSdw_nX")
 
-# Command to convert TeraBox URL to TeraBoxLink URL
+# Command to convert TeraBox URL
 async def convert(update: Update, context: CallbackContext):
     if context.args:
         url = context.args[0]
-
-        # Extract file ID from the provided TeraBox mirror URL
-        file_id = extract_file_id(url)
-
-        if file_id:
-            # Generate the new TeraBoxLink URL
-            new_url = generate_teraboxlink_url(file_id)
-            await update.message.reply_text(f"Here is your converted link: {new_url}")
-        else:
-            await update.message.reply_text("Invalid TeraBox URL. Please provide a valid link.")
+        converted_url = convert_terabox_url(url)
+        await update.message.reply_text(f"Converted URL: {converted_url}")
     else:
-        await update.message.reply_text("Please provide a TeraBox mirror link.\nExample: /convert https://terabox.com/s/1z57Ii1-U1hp0472eSdw_nX")
+        await update.message.reply_text("Please provide a TeraBox URL to convert.\nExample: /convert https://terabox.com/s/1z57Ii1-U1hp0472eSdw_nX")
 
 # Command to check bot's status
 async def status(update: Update, context: CallbackContext):
@@ -194,7 +178,7 @@ def main():
     # Add handlers for the commands
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("download", download))
-    application.add_handler(CommandHandler("convert", convert))  # Added the /convert handler
+    application.add_handler(CommandHandler("convert", convert))  # Added the convert command
     application.add_handler(CommandHandler("status", status))
 
     # Start the bot
